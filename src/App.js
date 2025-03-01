@@ -13,6 +13,7 @@ function App() {
   const canvasRef = useRef(null);
   const [fireDetected, setFireDetected] = useState(false);
   const [earthquakeDetected, setEarthquakeDetected] = useState(false);
+  const [peopleDetected, setPeopleDetected] = useState(false);
   const [detectionType, setDetectionType] = useState("fire");
 
   const startCamera = () => {
@@ -41,8 +42,11 @@ function App() {
       const formData = new FormData();
       formData.append("file", blob);
 
-      const modelId = detectionType === "fire" ? MODEL_FIRE_ID : MODEL_EARTH_ID;
-      
+      let modelId;
+      if (detectionType === "fire") modelId = MODEL_FIRE_ID;
+      else if (detectionType === "earthquake") modelId = MODEL_EARTH_ID;
+      else modelId = MODEL_PEOPLE_ID; // People Detection
+
       try {
         const response = await axios.post(
           `${API_URL}/${modelId}`,
@@ -61,12 +65,17 @@ function App() {
         const predictions = response.data.predictions || [];
         console.log("Detection results:", predictions);
 
+        // Reset all detections
+        setFireDetected(false);
+        setEarthquakeDetected(false);
+        setPeopleDetected(false);
+
         if (detectionType === "fire") {
           setFireDetected(predictions.length > 0);
-          setEarthquakeDetected(false);
-        } else {
+        } else if (detectionType === "earthquake") {
           setEarthquakeDetected(predictions.length > 0);
-          setFireDetected(false);
+        } else {
+          setPeopleDetected(predictions.length > 0);
         }
 
         context.clearRect(0, 0, canvas.width, canvas.height);
@@ -74,10 +83,12 @@ function App() {
 
         predictions.forEach((prediction) => {
           const { x, y, width, height, class: label } = prediction;
-          context.strokeStyle = detectionType === "fire" ? "red" : "blue";
+          context.strokeStyle = 
+            detectionType === "fire" ? "red" : 
+            detectionType === "earthquake" ? "blue" : "green";
           context.lineWidth = 3;
           context.strokeRect(x - width / 2, y - height / 2, width, height);
-          context.fillStyle = detectionType === "fire" ? "red" : "blue";
+          context.fillStyle = context.strokeStyle;
           context.font = "18px Arial";
           context.fillText(label, x, y - 10);
         });
@@ -89,16 +100,53 @@ function App() {
 
   return (
     <div className="App">
-      <h1>{detectionType === "fire" ? "Live Fire Detection" : "Live Earthquake Detection"}</h1>
+      <h1>
+        {detectionType === "fire"
+          ? "Live Fire Detection"
+          : detectionType === "earthquake"
+          ? "Live Earthquake Detection"
+          : "Live People Detection"}
+      </h1>
       <video ref={videoRef} autoPlay playsInline muted></video>
       <canvas ref={canvasRef}></canvas>
       <button onClick={startCamera}>Start Camera</button>
-      <button onClick={detectHazard}>Detect {detectionType === "fire" ? "Fire" : "Earthquake"}</button>
-      <button onClick={() => setDetectionType(detectionType === "fire" ? "earthquake" : "fire")}>
-        Switch to {detectionType === "fire" ? "Earthquake" : "Fire"} Detection
+      <button onClick={detectHazard}>Detect {detectionType}</button>
+      <button
+        onClick={() =>
+          setDetectionType(
+            detectionType === "fire"
+              ? "earthquake"
+              : detectionType === "earthquake"
+              ? "people"
+              : "fire"
+          )
+        }
+      >
+        Switch to {detectionType === "fire"
+          ? "Earthquake"
+          : detectionType === "earthquake"
+          ? "People"
+          : "Fire"}{" "}
+        Detection
       </button>
-      <p className={fireDetected ? "fire" : earthquakeDetected ? "earthquake" : "safe"}>
-        {fireDetected ? "🔥 Fire Detected!" : earthquakeDetected ? "🌍 Earthquake Detected!" : "✅ No Hazard"}
+      <p
+        className={
+          fireDetected
+            ? "fire"
+            : earthquakeDetected
+            ? "earthquake"
+            : peopleDetected
+            ? "people"
+            : "safe"
+        }
+      >
+        {fireDetected
+          ? "🔥 Fire Detected!"
+          : earthquakeDetected
+          ? "🌍 Earthquake Detected!"
+          : peopleDetected
+          ? "👥 People Detected!"
+          : "✅ No Hazard"}
       </p>
     </div>
   );
